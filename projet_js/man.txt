@@ -1,0 +1,5 @@
+voici les commandes que vous pouvez executer
+lp
+exe <nom_executable ou nom_application> <>
+stop
+man <nom_commande>
