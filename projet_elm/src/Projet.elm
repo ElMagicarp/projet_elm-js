@@ -1,8 +1,13 @@
 module Projet exposing (..)
 import Browser
-import Html exposing (Html, text, pre)
-import Http
+import Http exposing(..)
+import Html exposing (..)
+import Html.Attributes exposing (..)
+import Html.Events exposing (..)
+import Json.Decode exposing (Decoder, map4, field, int, string)
 import Random
+import List exposing (map5)
+
 
 
 
@@ -10,71 +15,97 @@ import Random
 
 
 main =
-  Browser.element
-    { init = init
-    , update = update
-    , subscriptions = subscriptions
-    , view = view
-    }
+  Browser.sandbox { init = init, update = update, view = view }
 
 
 
 -- MODEL
 
 
-type Model
-  = Failure
-  | Loading
-  | Success String
+type alias Model =
+  { text : String
+  , definition : String
+  , inputUser : String
+  , tempInput : String
+  , reponse : String
+  , essai : Int
+  , style : String 
+  }
 
 
-
-init : () -> (Model, Cmd Msg)
-init _ =
-  ( Loading
-  , randomWord(Http.get
-      { url = "http://localhost:8000/src/mots.txt"
-      , expect = Http.expectString GotText
-      })
-  )
+init : Model
+init =
+  Model Http.get{ url = "http://localhost:8000/mots.txt", expect = Http.expectString GotText} "la définition" " " "votre réponse ici" "manger" 0 "white"
 
 
-randomWord: Cmd Msg -> String
-randomWord =
-  Random.generate NewFace (Random.int 1 6)
-  
+getDef : String -> String
+getDef mot =
+  Http.get
+    { url = "https://api.dictionaryapi.dev/api/v2/entries/en/"++mot
+    , expect = Http.expectJson GotDef defDecoder
+    }
 
 
+defDecoder : Decoder def
+defDecoder =
+  map5 Quote
+    (field "word" string)
+    (field "phonetic" string)
+    (field "phonetics" phoneticsDecoder)
+    (field "origin" string)
+    (field "mearing" mearingDecoders)
 
+phoneticsDecoder : Decoder phonetics
+phoneticsDecoder =
+  map3
 -- UPDATE
 
 
 type Msg
-  = GotText (Result Http.Error String)
-  |Roll
-  |NewFace int
+  = Definition String
+  | InputUser String
+  | GotText
+  | GotDef
+  | Changer
+  | Test
+
+rool : int -> Random.Generator Int
+rool edge =
+  Random.int 0 edge
+
+motRandom : model -> String
+motRandom model =
+  head(drop ((rool (model.text).length)-1) (model.text).words)
 
 
-update : Msg -> Model -> (Model, Cmd Msg)
+update : Msg -> Model -> Model
 update msg model =
   case msg of
-    GotText result ->
-      case result of
-        Ok fullText ->
-          (Success fullText, Cmd.none)
+    Definition definition ->
+      { model | definition = definition }
+    InputUser temp ->
+      { model | tempInput = temp }
 
-        Err _ ->
-          (Failure, Cmd.none)
+    Changer ->
+      {model | definition = "la bite a dudule"
+      , reponse = motRandom model
+      , essai = 0
+      , style = "white"
+      , tempInput = "votre réponse ici"}
 
-
-
--- SUBSCRIPTIONS
-
-
-subscriptions : Model -> Sub Msg
-subscriptions model =
-  Sub.none
-
+    Test ->
+      {model | inputUser = model.tempInput
+      , style = 
+      if model.inputUser == model.reponse then
+        "green"
+      else
+        "red"
+      ,essai = 
+      if model.inputUser /= model.reponse then
+        model.essai +1
+      else
+        model.essai
+      }
 
 
 -- VIEW
@@ -82,12 +113,34 @@ subscriptions model =
 
 view : Model -> Html Msg
 view model =
-  case model of
-    Failure ->
-      text "I was unable to load your book."
+  div []
+    [ viewText  model.definition 
+    , viewInput "text"  model.tempInput InputUser
+    , viewText "nombre d'essais: "
+    , viewText (String.fromInt(model.essai))
+    , viewBouton "Tester la réponse" Test
+    , viewValidation model
+    , viewBouton "changer de defintion" Changer
+    , viewText (model.inputUser)
+    , viewText(model.tempInput)
+    ]
 
-    Loading ->
-      text "Loading..."
 
-    Success fullText ->
-      pre [] [ text fullText ]
+viewInput : String -> String -> (String -> msg) -> Html msg
+viewInput t v toMsg =
+  input [ type_ t, value v, onInput toMsg ] []
+
+viewText : String ->  Html msg
+viewText t =
+  text t
+
+viewBouton : String -> (msg) -> Html msg
+viewBouton t toMsg =
+  button [ onClick toMsg ] [ text t ]
+
+viewValidation : Model -> Html msg
+viewValidation model =
+  if model.reponse == model.inputUser then
+    div [ style "color" model.style ] [ text "BONNE REPONSE" ]
+  else
+    div [ style "color" model.style ] [ text "MAUVAISE REPONSE" ]
