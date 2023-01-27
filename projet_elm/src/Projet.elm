@@ -4,9 +4,11 @@ import Http exposing(..)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
-import Json.Decode exposing (Decoder, map4, field, int, string)
+import Json.Decode exposing (Decoder, map5, map4, field, int, string)
 import Random
-import List exposing (map5)
+import List exposing (..)
+import String exposing (words)
+
 
 
 
@@ -15,7 +17,7 @@ import List exposing (map5)
 
 
 main =
-  Browser.sandbox { init = init, update = update, view = view }
+  Browser.element { init = init, update = update, subscriptions = subscriptions, view = view }
 
 
 
@@ -29,15 +31,17 @@ type alias Model =
   , tempInput : String
   , reponse : String
   , essai : Int
-  , style : String 
+  , style : String
   }
 
 
-init : Model
-init =
-  Model Http.get{ url = "http://localhost:8000/mots.txt", expect = Http.expectString GotText} "la définition" " " "votre réponse ici" "manger" 0 "white"
+init : ()->(Model, Cmd Msg)
+init _ =
+   (Model "" "la définition" " " "votre réponse ici" "manger" 0 "white"
+   , Http.get{ url = "http://localhost:8000/mots.txt", expect = Http.expectString GotText}
+   )
 
-
+{-
 getDef : String -> String
 getDef mot =
   Http.get
@@ -58,43 +62,63 @@ defDecoder =
 phoneticsDecoder : Decoder phonetics
 phoneticsDecoder =
   map3
+-}
+
 -- UPDATE
 
 
 type Msg
   = Definition String
   | InputUser String
-  | GotText
+  | GotText (Result Http.Error String)
   | GotDef
   | Changer
   | Test
+  | Random Int
 
-rool : int -> Random.Generator Int
-rool edge =
-  Random.int 0 edge
+rool : Model -> Cmd Msg
+rool model =
+  Random.generate Random (Random.int 0 (length(words model.text)))
 
-motRandom : model -> String
-motRandom model =
-  head(drop ((rool (model.text).length)-1) (model.text).words)
+motRandom : Int -> Model -> String
+motRandom index model =
+ let mot = head (drop index (words model.text)) in case mot of
+  Just str -> str
+  Nothing -> "ERROR"
 
-
-update : Msg -> Model -> Model
+update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
     Definition definition ->
-      { model | definition = definition }
+      ({ model | definition = definition },Cmd.none)
+      
     InputUser temp ->
-      { model | tempInput = temp }
+      ({ model | tempInput = temp },Cmd.none)
 
     Changer ->
-      {model | definition = "la bite a dudule"
-      , reponse = motRandom model
+      ({model | definition = " "
+      , reponse = "bonjour"
       , essai = 0
       , style = "white"
-      , tempInput = "votre réponse ici"}
+      , tempInput = "votre réponse ici"}, rool model)
+    
+    GotText result ->
+      case result of
+        Ok fullText ->
+          ({model | definition = ""
+          , text = fullText
+          , reponse = "bonjour"
+          , essai = 0
+          , style = "white"
+          , tempInput = "votre réponse ici"}, Cmd.none)
+        Err _->
+          (model,Cmd.none)
+
+    Random result ->
+      ({model | reponse = (motRandom result model) }, Cmd.none)
 
     Test ->
-      {model | inputUser = model.tempInput
+      ({model | inputUser = model.tempInput
       , style = 
       if model.inputUser == model.reponse then
         "green"
@@ -105,11 +129,13 @@ update msg model =
         model.essai +1
       else
         model.essai
-      }
+      }, Cmd.none)
+
+    GotDef -> 
+      (model,Cmd.none)
 
 
 -- VIEW
-
 
 view : Model -> Html Msg
 view model =
@@ -144,3 +170,7 @@ viewValidation model =
     div [ style "color" model.style ] [ text "BONNE REPONSE" ]
   else
     div [ style "color" model.style ] [ text "MAUVAISE REPONSE" ]
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+  Sub.none
