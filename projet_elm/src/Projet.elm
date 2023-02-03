@@ -11,6 +11,9 @@ import String exposing (words)
 import Json.Decode exposing (..)
 import Platform.Cmd exposing (none)
 import Browser.Dom exposing (getViewportOf)
+import Json.Decode exposing (..)
+import Json.Decode.Pipeline as JP
+
 
 -- MAIN
 
@@ -34,6 +37,7 @@ type alias Data
     , state : String
     , resultat : String
     , color : String
+    , showResponse : String
     }
   
 --INIT HTTP
@@ -48,101 +52,56 @@ getDef : String -> Cmd Msg
 getDef mot =
   Http.get
     { url = "https://api.dictionaryapi.dev/api/v2/entries/en/"++mot
-    , expect = Http.expectJson GotDef defDecoder
+    , expect = Http.expectJson GotDef (Json.Decode.list defDecoder)
     }
 
 --JSON
-{-}
-type alias Def = 
-  List Meanings
 
-type alias DefMea = 
-  {definitions:String}
-
-type alias Meanings = 
-  {partOfSpeech : String 
-  , definitions : DefMea}
-
-
-defMeaDecoder : Decoder DefMea
-defMeaDecoder =
-  Json.Decode.map DefMea
-    (field "definitions" string)
-
-
-meaningDecoder : Decoder Meanings
-meaningDecoder =
-  Json.Decode.map2 Meanings
-    (field "partOfSpeech" string)
-    (field "definitions" defMeaDecoder)
-
-
-defDecoder =
-  at ["meanings"] (Json.Decode.list meaningDecoder)
--}
-
-type alias Def = 
-    { meanings : List Meanings 
-    }
-
-type alias Meanings =
-    { partOfSpeech : String
-    , definitions : List Definitions
-    }
-
-type alias Definitions =
+type alias Definition =
     { definition : String
-    , example : String
     , synonyms : List String
     , antonyms : List String
     }
 
-listMeaningsDecoder : Json.Decode.Decoder (List Meanings)
-listMeaningsDecoder =
-    Json.Decode.field "meanings" (Json.Decode.list meaningsDecoder)
+type alias Meaning =
+    { partOfSpeech : String
+    , definitions : List Definition
+    }
 
-meaningsDecoder : Json.Decode.Decoder Meanings
-meaningsDecoder =
-    Json.Decode.map2 Meanings
-        (Json.Decode.field "partOfSpeech" Json.Decode.string)
-        (Json.Decode.field "definitions" (Json.Decode.list definitionsDecoder))
+type alias Def =
+    { meanings : List Meaning
+    }
 
-definitionsDecoder : Json.Decode.Decoder Definitions
-definitionsDecoder =
-    Json.Decode.map4 Definitions
-        (Json.Decode.field "definition" Json.Decode.string)
-        (Json.Decode.field "example" Json.Decode.string)
-        (Json.Decode.field "synonyms" (Json.Decode.list Json.Decode.string))
-        (Json.Decode.field "antonyms" (Json.Decode.list Json.Decode.string))
+type alias API =
+    {def : List Def}
 
-listDefDecoder : Json.Decode.Decoder (List Def)
-listDefDecoder =
-    Json.Decode.list defDecoder
-
-defDecoder : Json.Decode.Decoder Def
-defDecoder =
-    Json.Decode.map Def
-        listMeaningsDecoder
-
-
-{-
-defDecoder =
-  at ["meanings"] (Json.Decode.list meaningDecoder)
+defMeaDecoder =
+    succeed Definition
+        |> JP.required "definition" string
+        |> JP.required "synonyms" (Json.Decode.list string)
+        |> JP.required "antonyms" (Json.Decode.list string)
 
 meaningDecoder =
-  Json.Decode.map Meanings
-    (field "partOfSpeech" string)
--}
+    succeed Meaning
+        |> JP.required "partOfSpeech" string
+        |> JP.required "definitions" (Json.Decode.list defMeaDecoder)
+
+defDecoder =
+    succeed Def
+        |> JP.required "meanings" (Json.Decode.list meaningDecoder)
+
+
 -- UPDATE
 
 
 type Msg
   = InputUser String
   | GotText (Result Http.Error String)
-  | GotDef (Result Http.Error Def)
+  | GotDef (Result Http.Error (List Def))
   | Changer
   | Test
   | Random Int
+  | Show
 
 rool : Model -> Cmd Msg
 rool model =
@@ -179,7 +138,8 @@ update msg model =
                                     , essai =0
                                     , state ="GotText"
                                     , resultat =""
-                                    , color =""})
+                                    , color =""
+                                    ,showResponse = ""})
           Err _->
             (model,Cmd.none)
       _ -> (model,Cmd.none)
@@ -194,6 +154,7 @@ update msg model =
           , resultat = " "
           , inputUser = ""
           , state = "changer"
+          ,showResponse = ""
           }, rool model)
 
         Random result ->
@@ -222,10 +183,17 @@ update msg model =
           else
             "testFalse"}, Cmd.none)
 
+        Show ->
+          (Success{data | showResponse = data.reponse
+          , resultat = "testTrue"
+          }, Cmd.none)  
+
         GotDef result -> 
           case result of
               Ok def ->
-                (Success{data | definition = def}, Cmd.none)
+                case (head def) of
+                  Nothing -> (model, Cmd.none)
+                  Just rs -> (Success{data | definition = rs}, Cmd.none)
               Err _ ->
                 (model, Cmd.none)
         
@@ -255,7 +223,8 @@ viewPage model =
       div[]
         [ viewEssai model
         , br[][]
-        , viewDef data.definition 
+        , viewDef data.definition
+        , text data.reponse
         , div[][viewText  "Tapez votre réponse ci-dessous" "h2"]
         , if data.state == "testTrue" then 
             div[][viewInput "text"  data.inputUser InputUser]
@@ -263,6 +232,7 @@ viewPage model =
             div[][viewInput "text"  data.inputUser InputUser ,viewBouton "Tester la réponse" Test]
         , br[][]
         , div[][viewValidation model, viewBouton "changer de defintion" Changer]
+        , div[][viewValidation model, viewBouton "montrer la réponse" Show]
         ]
 
 viewEssai : Model -> Html Msg
@@ -274,51 +244,73 @@ viewEssai model =
       [ viewText ("nombre d'essais: "++String.fromInt(data.essai)) ""
       ]
 
-viewList : List (Html Msg) -> Html Msg
-viewList list =
-  ul[] list
-
 viewDef : Def -> Html Msg
 viewDef def  =
-  viewList(List.map viewMeanings def.meanings)
-    
+    ul[][
+      li[][ text "meaning", br[][] ,
+        ul[][
+          div[](List.map viewMeanings def.meanings)
+        ]
+      ]
+    ]
 
-viewMeanings : Meanings -> Html Msg
-viewMeanings  meanings =
-  --if meanings.partOfSpeech /= "" then
-      div[][
-        ul[][
-          li[][ text "meaning", br[][] ,
-            ul[][
-              li[][ viewText meanings.partOfSpeech "h4", br[][] ,
-                ol[][
-                  li[][
-                      viewText "data" ""
-                    , br[][] 
-                  ]
-                ]
-              ]
-            ]
+viewSousDef : Definition -> Html Msg
+viewSousDef sousDef =
+ {- if List.length (sousDef.synonyms)/=0 && List.length (sousDef.synonyms)/=0 then
+    ul [][
+        viewText sousDef.definition ""
+        ,li[][ viewText "Synonymes" "h4", br[][] ,
+          ol[][
+            viewListString sousDef.synonyms
           ]
         ]
-      ]
-  {-else
-    div[][
-        ul[][
-          li[][ text "meaning", br[][] ,
-            ul[][
-              li[][ text "ERROR JSON.DECODE RETURN NOTHING", br[][] ,
-                ol[][
-                  li[][
-                      viewText ("Not found") ""
-                  ]
-                ]
-              ]
-            ]
+        ,li[][ viewText "Antonymes" "h4", br[][] ,
+          ol[][
+            viewListString sousDef.antonyms
           ]
-        ]
+        ] 
       ]
+  else if List.length (sousDef.synonyms)/=0 then
+    ul [][
+      viewText sousDef.definition ""
+      ,li[][ viewText "Antonymes" "h4", br[][] ,
+        ol[][
+          viewListString sousDef.antonyms
+        ]
+      ] 
+    ]
+  else if List.length (sousDef.antonyms)/=0 then
+    ul [][
+      viewText sousDef.definition ""
+      ,li[][ viewText "Synonymes" "h4", br[][] ,
+          ol[][
+            viewListString sousDef.synonyms
+          ]
+        ] 
+      ]
+  else 
+     ul [][
+        viewText sousDef.definition ""
+     ]
   -}
+    li[][
+        viewText sousDef.definition ""
+    ]
+
+
+
+viewListString : List String -> Html Msg
+viewListString listString =
+    div[](List.map text listString)
+
+viewMeanings : Meaning -> Html Msg
+viewMeanings  meanings =
+  li[][ viewText meanings.partOfSpeech "h4",
+    div[][ol[](List.map viewSousDef meanings.definitions)]
+  ]
+
+
+
 
 viewInput : String -> String -> (String -> msg) -> Html msg
 viewInput t v toMsg =
