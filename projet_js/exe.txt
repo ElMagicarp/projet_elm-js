@@ -1,0 +1,8 @@
+commande pour executer un programme 
+
+exemple: exe firefox
+         exe <emplacement du fichier .py ou .js>
+
+si vous rajoutez "!" à la fin de la commande, le programme s'executera en parallèle du CLI
+
+exemple : exe firefox !

@@ -35,9 +35,6 @@ async function command(result) {
         cli = false;
         process.exit();
     }
-    else if (result.command == 'help'){
-        let a = await man("help");
-    }
     else if (result.command.split(' ')[0] == 'man'){
         let a = await man(result.command);
     }
@@ -45,7 +42,7 @@ async function command(result) {
         let a = await bing(result.command);
     }
     else {
-        console.log('Veulliez vous référer à la documentation du CLI avec la commande help');
+        console.log('Veulliez vous référer à la documentation du CLI avec la commande man');
     }
 }
 
@@ -104,13 +101,25 @@ async function exe (command){
 }
 
 async function man (input){
-    return new Promise((resolve, reject) => {
-        let man = input+".txt";
-        fs.readFile(man, (err, data) => {
-            if (err) throw err;
-            resolve (console.log(data.toString()));
-            })
-    }); 
+    if (input.split(' ')[1] == null){
+        return new Promise((resolve, reject) => {
+            let man = input+".txt";
+            fs.readFile(man, (err, data) => {
+                if (err) throw err;
+                resolve (console.log(data.toString()));
+                })
+        }); 
+    }else if (input.split(' ')[1] == "exe" || input.split(' ')[1] == "lp" || input.split(' ')[1] == "stop"){
+        return new Promise((resolve, reject) => {
+            let man = input.split(' ')[1]+".txt";
+            fs.readFile(man, (err, data) => {
+                if (err) throw err;
+                resolve (console.log(data.toString()));
+                })
+        }); 
+    }else {
+        console.log("Veuillez entrer une commande valide à inspecter")
+    }
 }
 
 async function bing (command){
