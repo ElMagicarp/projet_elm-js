@@ -4,16 +4,24 @@ const exec = require('child_process').exec;
 const fs = require('fs')
 let cli = true;
 let userInput
+const readline = require('readline');
+readline.emitKeypressEvents(process.stdin);
+process.stdin.setRawMode(false);
+
 
 main();
 
 async function main() {
-
-    while(true){
-
+    while (true){
         prompt.message = colors.brightWhite.bgBlue('💨  '+'CLImatiseur'+'   💨'); //mettre des couleurs sympa
         prompt.delimiter = '>';
         prompt.start();
+        process.stdin.on('keypress', (str, key) => {
+            if (key.ctrl && key.name === 't') {
+              console.log("exiting")
+              process.exit();
+            } 
+        });
         var input = await prompt.get([{
             name: 'command',
             description:'enter a command'
@@ -21,7 +29,6 @@ async function main() {
 
         await command(input);
     }
-
 }
     
 async function command(result) {
