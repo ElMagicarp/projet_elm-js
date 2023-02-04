@@ -4,14 +4,12 @@ import Http exposing(..)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
-import Json.Decode exposing (Decoder,map, map2, map4,map5, field, int, string)
 import Random
 import List exposing (..)
 import String exposing (words)
 import Json.Decode exposing (..)
-import Platform.Cmd exposing (none)
-import Browser.Dom exposing (getViewportOf)
-import Json.Decode exposing (..)
+import Platform.Cmd exposing (..)
+import Browser.Dom exposing (..)
 import Json.Decode.Pipeline as JP
 
 
@@ -163,29 +161,29 @@ update msg model =
 
         Test ->
           (Success{data | resultat = 
-          if data.reponse == data.inputUser then
+          if data.reponse == data.inputUser then --gestion de l'affichage du résultat
             "Bonne Réponse"  
           else
             "Mauvaise Réponse"
           ,color = 
-          if data.reponse == data.inputUser then
+          if data.reponse == data.inputUser then 
             "green"  
           else
             "red"
           ,essai = 
-          if data.inputUser /= data.reponse then
+          if data.inputUser /= data.reponse then --gestion de l'incrémentation du nombre d'essais
             data.essai +1
           else
             data.essai
           , state = 
-          if data.reponse == data.inputUser then
+          if data.reponse == data.inputUser then --mise a jour du model pour modifier l'affichage des boutons
             "testTrue"
           else
             "testFalse"}, Cmd.none)
 
         Show ->
-          (Success{data | showResponse = data.reponse
-          , resultat = "testTrue"
+          (Success{data | showResponse = ("   : "++data.reponse)
+          , state = "testTrue"
           }, Cmd.none)  
 
         GotDef result -> 
@@ -224,15 +222,17 @@ viewPage model =
         [ viewEssai model
         , br[][]
         , viewDef data.definition
-        , text data.reponse
-        , div[][viewText  "Tapez votre réponse ci-dessous" "h2"]
         , if data.state == "testTrue" then 
-            div[][viewInput "text"  data.inputUser InputUser]
+            div[][viewText  "Changez de mot" "h2"]
           else
-            div[][viewInput "text"  data.inputUser InputUser ,viewBouton "Tester la réponse" Test]
+            div[][viewText  "Tapez votre réponse ci-dessous" "h2"
+                  ,viewInput "text"  data.inputUser InputUser
+                  ,viewBouton "Tester la réponse" Test         
+            ]
         , br[][]
-        , div[][viewValidation model, viewBouton "changer de defintion" Changer]
-        , div[][viewValidation model, viewBouton "montrer la réponse" Show]
+        , div[][viewValidation model, viewBouton "Changer de mot" Changer
+                ,viewBouton "Montrer la réponse" Show, viewText (data.showResponse) ""
+              ]   
         ]
 
 viewEssai : Model -> Html Msg
@@ -256,52 +256,15 @@ viewDef def  =
 
 viewSousDef : Definition -> Html Msg
 viewSousDef sousDef =
- {- if List.length (sousDef.synonyms)/=0 && List.length (sousDef.synonyms)/=0 then
-    ul [][
-        viewText sousDef.definition ""
-        ,li[][ viewText "Synonymes" "h4", br[][] ,
-          ol[][
-            viewListString sousDef.synonyms
-          ]
-        ]
-        ,li[][ viewText "Antonymes" "h4", br[][] ,
-          ol[][
-            viewListString sousDef.antonyms
-          ]
-        ] 
-      ]
-  else if List.length (sousDef.synonyms)/=0 then
-    ul [][
-      viewText sousDef.definition ""
-      ,li[][ viewText "Antonymes" "h4", br[][] ,
-        ol[][
-          viewListString sousDef.antonyms
-        ]
-      ] 
-    ]
-  else if List.length (sousDef.antonyms)/=0 then
-    ul [][
-      viewText sousDef.definition ""
-      ,li[][ viewText "Synonymes" "h4", br[][] ,
-          ol[][
-            viewListString sousDef.synonyms
-          ]
-        ] 
-      ]
-  else 
-     ul [][
-        viewText sousDef.definition ""
-     ]
-  -}
     li[][
         viewText sousDef.definition ""
     ]
 
 
-
 viewListString : List String -> Html Msg
 viewListString listString =
     div[](List.map text listString)
+
 
 viewMeanings : Meaning -> Html Msg
 viewMeanings  meanings =
@@ -310,13 +273,12 @@ viewMeanings  meanings =
   ]
 
 
-
-
 viewInput : String -> String -> (String -> msg) -> Html msg
 viewInput t v toMsg =
   input [ type_ t, Html.Attributes.value v, onInput toMsg ] []
 
-viewText : String -> String ->  Html msg
+
+viewText : String -> String ->  Html msg -- fonction facilitant l'affichage de strings
 viewText t style =
   case style of 
     "h1"->
@@ -335,11 +297,12 @@ viewText t style =
       text t
    
 
-viewBouton : String -> (msg) -> Html msg
+viewBouton : String -> (msg) -> Html msg -- fonction facilitant l'affichage de boutons
 viewBouton t toMsg =
   button [ onClick toMsg ] [ text t ]
 
-viewValidation : Model -> Html msg
+
+viewValidation : Model -> Html msg -- gestion de l'affichage de la validation de réponse
 viewValidation model =
   case model of
     Loading -> div[][]
